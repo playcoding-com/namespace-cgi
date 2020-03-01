@@ -11,30 +11,60 @@ if [[ "$GITROOT" == "" ]]; then
 fi
 cd $GITROOT
 
-# 枚举 namespace
-for REPONS in */refs/namespaces/*
+# 容纳所有
+HEADS=()
+
+# repo / namespace / head
+for RNH in */refs/namespaces/*/refs/heads/*
 do
-	# 库
-	REPO="${REPONS%%$SEP*}"
-	NS="${REPONS##*$SEP}"
-	REPONAME="${REPONS%%.*}"
+	#echo ${#HEADS[@]}
+	HEADS[${#HEADS[@]}]=$RNH
+done
 
-	#echo "$REPO"
-	#echo "$NS"
-	#echo $REPONAME
-	echo "ns/$REPONAME/$NS"
-
-	# heads
-	for HEADS in $REPONS/refs/heads/*
+# repo / packed-refs
+for RP in */packed-refs
+do
+	# namespace / head
+	NHS=`cat $RP | awk '{print $2}' | grep namespaces`
+	#echo $NHS
+	for NH in $NHS
 	do
-		#echo $HEADS
-		HEADNAME="${HEADS##*$SEP}"
-		HEADPATH="${HEADS#*$SEP}"
-		#echo $HEADNAME
-		#echo $HEADPATH
-		echo "<a href='./?p=$REPO;a=shortlog;h=$HEADPATH'>$HEADNAME</a>"
+		#echo ${RP%%$SEP*}/$NH
+		#echo ${#HEADS[@]}
+		HEADS[${#HEADS[@]}]=${RP%%$SEP*}/$NH
 	done
+done
 
-	echo "<br>"
+# 上一次NS
+LASTNS=
+
+for RNH in `echo ${HEADS[@]} | sed -e 's/ /\n/g' | sort | uniq`
+do
+	# 物理库
+	REPO="${RNH%%$SEP*}"
+
+	# 逻辑库名
+	NS=`echo $RNH | awk -F/ '{print $4}'`
+
+	# URL访问库名(不含点)
+	REPONAME="${RNH%%.*}"
+
+	#echo $REPO --- $REPONAME --- $NS
+	if [[ "$LASTNS" != "$NS" ]]; then
+		if [[ "$LASTNS" != "" ]]; then
+			echo "<br/>"
+		fi
+		echo "ns/$REPONAME/$NS"
+		LASTNS=$NS
+	fi
+
+	# 分支名称
+	HEADNAME="${RNH##*$SEP}"
+
+	# 分支路径
+	HEADPATH="${RNH#*$SEP}"
+
+	#echo $HEADNAME --- $HEADPATH
+	echo "<a href='./?p=$REPO;a=shortlog;h=$HEADPATH'>$HEADNAME</a>"
 done
 
